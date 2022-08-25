@@ -214,3 +214,101 @@ def print_weights_in_checkpoint(model_folder, cp_name):
       tensor_name='',
       all_tensors=True,
       all_tensor_names=True)
+
+def cal_max_sample(data, InputTypes, config):
+  id_col = get_single_col_by_input_type(InputTypes.ID, config.column_definition)
+  time_col = get_single_col_by_input_type(InputTypes.TIME, config.column_definition)
+  time_steps = config['total_time_steps']
+
+  valid_sampling_locations = []
+  for identifier, df in data.groupby(id_col):
+    num_entries = len(df)
+    if num_entries >= time_steps:
+      valid_sampling_locations += [
+          (identifier, time_steps + i)
+          for i in range(num_entries - time_steps + 1)
+      ]
+
+  return len(valid_sampling_locations)
+
+def batch_sampled_data(data, max_samples, InputTypes, config):
+  """Samples segments into a compatible format.
+  Args:
+    data: Sources data to sample and batch
+    max_samples: Maximum number of samples in batch
+  Returns:
+    Dictionary of batched data with the maximum samples specified.
+  """
+  time_steps = config['total_time_steps']
+  input_size = config['input_size']
+  output_size = config['output_size']
+  num_encoder_steps = config['num_encoder_steps']
+  
+  if max_samples < 1:
+    raise ValueError(
+        'Illegal number of samples specified! samples={}'.format(max_samples))
+
+  id_col = get_single_col_by_input_type(InputTypes.ID, config.column_definition)
+  time_col = get_single_col_by_input_type(InputTypes.TIME, config.column_definition)
+
+  data.sort_values(by=[id_col, time_col], inplace=True)
+
+  print('Getting valid sampling locations.')
+  valid_sampling_locations = []
+  split_data_map = {}
+  for identifier, df in data.groupby(id_col):
+    print('Getting locations for {}'.format(identifier))
+    num_entries = len(df)
+    if num_entries >= time_steps:
+      valid_sampling_locations += [
+          (identifier, time_steps + i)
+          for i in range(num_entries - time_steps + 1)
+      ]
+    split_data_map[identifier] = df
+
+  inputs = np.zeros((max_samples, time_steps, input_size))
+  outputs = np.zeros((max_samples, time_steps, output_size))
+  time = np.empty((max_samples, time_steps, 1), dtype=object)
+  identifiers = np.empty((max_samples, time_steps, 1), dtype=object)
+
+  if max_samples > 0 and len(valid_sampling_locations) > max_samples:
+    print('Extracting {} samples...'.format(max_samples))
+    ranges = [
+        valid_sampling_locations[i] for i in np.random.choice(
+            len(valid_sampling_locations), max_samples, replace=False)
+    ]
+  else:
+    print('Max samples={} exceeds # available segments={}'.format(
+        max_samples, len(valid_sampling_locations)))
+    ranges = valid_sampling_locations
+
+  id_col = get_single_col_by_input_type(InputTypes.ID, config.column_definition)
+  time_col = get_single_col_by_input_type(InputTypes.TIME, config.column_definition)
+  target_col = get_single_col_by_input_type(InputTypes.TARGET, config.column_definition)
+  input_cols = [
+      tup[0]
+      for tup in config.column_definition
+      if tup[2] not in {InputTypes.ID, InputTypes.TIME}
+  ]
+
+  for i, tup in enumerate(ranges):
+    if (i + 1 % 1000) == 0:
+      print(i + 1, 'of', max_samples, 'samples done...')
+    identifier, start_idx = tup
+    sliced = split_data_map[identifier].iloc[start_idx -
+                                              time_steps:start_idx]
+    inputs[i, :, :] = sliced[input_cols]
+    outputs[i, :, :] = sliced[[target_col]]
+    time[i, :, 0] = sliced[time_col]
+    identifiers[i, :, 0] = sliced[id_col]
+
+  sampled_data = {
+      'inputs': inputs,
+      'outputs': outputs[:, num_encoder_steps:, :],
+      'active_entries': np.ones_like(outputs[:, num_encoder_steps:, :]),
+      'time': time,
+      'identifier': identifiers
+  }
+
+  return sampled_data
+
