@@ -76,7 +76,7 @@ class static_combine_and_mask(nn.Module):
 def Add(inputs):
     output = inputs[0]
     for i in range(1, len(inputs)):
-        output += inputs[i]
+        output = output + inputs[i]
     return output
 
 class add_and_norm(nn.Module):
