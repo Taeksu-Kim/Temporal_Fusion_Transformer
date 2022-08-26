@@ -617,7 +617,7 @@ class Temporal_Fusion_Transformer(nn.Module):
         decoder, _ = self.final_apply_gating_layer(decoder)
         transformer_layer = self.final_add_and_norm([decoder, temporal_feature_layer])
 
-        outputs = self.output_linear(transformer_layer[Ellipsis, num_encoder_steps:, :])
+        outputs = self.output_linear(transformer_layer[Ellipsis, self.config.num_encoder_steps:, :])
 
         # Attention components for explainability
         attention_components = {
