@@ -1,6 +1,10 @@
 # Temporal_Fusion_Transformer(PyTorch)
 \# Time Series   
 \# Multi-horizon Time Series Forecasting
+
+# Paper
+https://arxiv.org/pdf/1912.09363v3.pdf
+
 # 현황
 Google research 깃허브의 tf v1 TFT 코드를 pytorch로 구현, train, inference까지 동작 확인 완료.
 
@@ -21,10 +25,6 @@ NLP 외 분야에서 임베딩, 어텐션을 포함한 트랜스포머 구조가
  ┣ model.py   
  ┣ README.md   
  ┗ tft_test.ipynb   
-
-
-# Paper
-https://arxiv.org/pdf/1912.09363v3.pdf
 
 # Usage example
 tft_test.ipynb
